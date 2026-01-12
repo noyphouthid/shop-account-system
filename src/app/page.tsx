@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ArrowDownCircle, TrendingUp, Users, Factory, Printer, FileSpreadsheet, Package } from 'lucide-react';
-import Link from 'next/link'; // สำหรับกดลิงก์ไปหน้าอื่น
+import Link from 'next/link';
 
 export default function Home() {
   const [orders, setOrders] = useState<any[]>([])
@@ -62,7 +62,7 @@ export default function Home() {
       if (editingId) { error = (await supabase.from('orders').update(payload).eq('id', editingId)).error }
       else { error = (await supabase.from('orders').insert([payload])).error }
       if (error) throw error
-      alert("บันทึกสำเร็จ!"); resetForm(); fetchOrders();
+      alert("ບັນທຶກສຳເລັດ!"); resetForm(); fetchOrders();
     } catch (err: any) { alert("Error: " + err.message) }
   }
 
@@ -70,7 +70,7 @@ export default function Home() {
     setEditingId(null); setOrderCode(''); setTotalQuantity(0); setTotalPrice(0);
     setInitialDeposit(0); setFactoryCost(0); setStatus('ກຳລັງຜະລິດ');
     setDepositDate(new Date().toISOString().split('T')[0]); setCompletedDate('');
-    setFactoryPaymentStatus('ຍັງບໍ່ທັນຊຳລະ');
+    setFactoryPaymentStatus('ຍັງບໍ່ທันຊຳລະ');
   }
 
   const startEdit = (order: any) => {
@@ -81,7 +81,7 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // --- Logic การคำนวณใหม่ ---
+  // --- Logic การคำนวณ ---
   const filteredOrders = orders.filter(order => {
     const code = (order.order_code || '').toLowerCase()
     const search = searchTerm.toLowerCase()
@@ -92,15 +92,31 @@ export default function Home() {
     return matchesSearch && matchesStatus && (d.getMonth() + 1) === selectedMonth && d.getFullYear() === selectedYear
   })
 
+  // คำนวณยอดเงินสำหรับ Dashboard
   const cashIn = filteredOrders.reduce((sum, o) => sum + (o.initial_deposit || 0) + (o.added_customer_paid || 0), 0)
-  const monthlyOrderCount = filteredOrders.length; // นับจำนวนออเดอร์จากรายการที่กรองแล้ว
+  const monthlyOrderCount = filteredOrders.length;
   const totalProfitValue = filteredOrders
     .filter(o => o.status === 'ຜະລິດສຳເລັດແລ້ວ')
     .reduce((sum, o) => sum + ((o.total_price || 0) - (o.factory_cost || 0)), 0)
 
-  const totalFactoryPaid = filteredOrders.reduce((sum, o) => sum + (o.factory_paid || 0), 0)
-  const totalCustomerDebt = filteredOrders.reduce((sum, o) => sum + ((o.total_price || 0) - ((o.initial_deposit || 0) + (o.added_customer_paid || 0))), 0)
-  const totalFactoryDebt = filteredOrders.reduce((sum, o) => sum + ((o.factory_cost || 0) - (o.factory_paid || 0)), 0)
+  // แก้ไขยอดเงินชำระโรงงานแล้ว (ดึงจาก factory_cost ถ้าสถานะคือ ชำระแล้ว)
+  const totalFactoryPaid = filteredOrders
+    .filter(o => o.factory_payment_status === 'ຊຳລະແລ້ວ')
+    .reduce((sum, o) => sum + (o.factory_cost || 0), 0)
+
+  const totalCustomerDebt = filteredOrders.reduce((sum, o) => {
+    const paid = (o.initial_deposit || 0) + (o.added_customer_paid || 0);
+    return sum + ((o.total_price || 0) - paid);
+  }, 0)
+
+  const totalFactoryDebt = filteredOrders
+    .filter(o => o.factory_payment_status !== 'ຊຳລະແລ້ວ')
+    .reduce((sum, o) => sum + (o.factory_cost || 0), 0)
+
+  const totalShirts = filteredOrders.reduce((sum, o) => sum + (o.total_quantity || 0), 0)
+
+  // ตัวแปรสำหรับส่งไปหน้าย่อย
+  const queryParams = `?month=${selectedMonth}&year=${selectedYear}`;
 
   return (
     <main className="min-h-screen bg-[#E8EBF0] text-slate-800 font-['Noto_Sans_Lao'] pb-10">
@@ -111,7 +127,7 @@ export default function Home() {
         </div>
         <div className="flex gap-2 bg-[#ffffff15] p-1.5 rounded-lg border border-white/10">
           <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-transparent font-bold outline-none text-sm px-2 cursor-pointer">
-            {['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'].map((m, i) => (<option key={i} value={i + 1} className="text-black">{m}</option>))}
+            {['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມิຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'].map((m, i) => (<option key={i} value={i + 1} className="text-black">{m}</option>))}
           </select>
           <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent font-bold outline-none text-sm px-2 border-l border-white/20 cursor-pointer">
             <option value={2025} className="text-black">2025</option><option value={2026} className="text-black">2026</option>
@@ -121,7 +137,7 @@ export default function Home() {
 
       <div className="p-4 space-y-4 max-w-full mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Column 1: Form (ยังคงเดิมแต่เพิ่มสถานะโรงงาน) */}
+          {/* Form Section */}
           <div className="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm print:hidden">
             <h2 className="text-sm font-black mb-4 flex items-center gap-2 text-blue-600">
               <span className="w-1 h-4 bg-blue-600 rounded-full"></span> {editingId ? 'ແກ້ໄຂອໍເດີ້' : 'ເພີ່ມອໍເດີ້ໃໝ່'}
@@ -159,47 +175,39 @@ export default function Home() {
             </form>
           </div>
 
-          {/* Column 2: Dashboard Cards (ปรับปรุงใหม่ตามแผน) */}
+          {/* Dashboard Cards Section */}
           <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
-            {/* Card: Cash In */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-teal-600 p-5 rounded-[24px] shadow-lg shadow-teal-200/50 text-white">
-              <div className="flex justify-between items-start mb-4"><div className="p-2 bg-white/20 rounded-xl backdrop-blur-md"><ArrowDownCircle size={20}/></div><p className="text-[10px] font-bold uppercase tracking-wider bg-black/10 px-2 py-1 rounded-lg">Cash In</p></div>
-              <p className="text-xs opacity-80 font-medium mb-1">ຍອດເງິນສົດຮັບທັງໝົດ</p>
+            <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-teal-600 p-5 rounded-[24px] shadow-lg text-white">
+              <div className="flex justify-between items-start mb-4"><div className="p-2 bg-white/20 rounded-xl"><ArrowDownCircle size={20}/></div><p className="text-[10px] font-bold uppercase tracking-wider bg-black/10 px-2 py-1 rounded-lg">Cash In</p></div>
+              <p className="text-xs opacity-80 mb-1">ຍອດເງິນທັງໝົດ</p>
               <h3 className="text-2xl font-extrabold">{cashIn.toLocaleString()} <span className="text-sm font-normal">₭</span></h3>
             </div>
 
-            {/* Card: กำไร (Clickable) */}
-            <Link href="/profit-details" className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-[24px] shadow-lg shadow-orange-200/50 text-white hover:scale-[1.02] transition-transform">
-              <div className="flex justify-between items-start mb-4"><div className="p-2 bg-white/20 rounded-xl backdrop-blur-md"><TrendingUp size={20}/></div><p className="text-[10px] font-bold uppercase tracking-wider bg-black/10 px-2 py-1 rounded-lg">Net Profit</p></div>
-              <p className="text-xs opacity-80 font-medium mb-1">ກຳໄລສຸດທິ (ຄລິກເບິ່ງ)</p>
+            <Link href={`/profit-details${queryParams}`} className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-[24px] shadow-lg text-white hover:scale-[1.02] transition-transform">
+              <div className="flex justify-between items-start mb-4"><div className="p-2 bg-white/20 rounded-xl"><TrendingUp size={20}/></div><p className="text-[10px] font-bold uppercase tracking-wider bg-black/10 px-2 py-1 rounded-lg">Net Profit</p></div>
+              <p className="text-xs opacity-80 mb-1">ກຳໄລສຸດທິ (ກົດເບິ່ງລາຍການ)</p>
               <h3 className="text-2xl font-extrabold">{totalProfitValue.toLocaleString()} <span className="text-sm font-normal">₭</span></h3>
             </Link>
 
-            {/* Card: จำนวนออเดอร์ในเดือน */}
             <div className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between">
               <div className="flex items-center gap-3 mb-3"><div className="p-2 bg-purple-50 rounded-xl text-purple-500"><Package size={18} /></div><p className="text-slate-400 text-[10px] font-bold uppercase">ຈຳນວນອໍເດີ້ໃນເດືອນ</p></div>
               <h3 className="text-2xl font-black text-purple-600">{monthlyOrderCount} <span className="text-xs ml-1 font-bold italic">Orders</span></h3>
             </div>
 
-            {/* Card: ค้างรับลูกค้า (Clickable) */}
-            <Link href="/customer-debt" className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between hover:border-rose-200 transition-colors">
-              <div className="flex items-center gap-3 mb-3"><div className="p-2 bg-rose-50 rounded-xl text-rose-500"><Users size={18} /></div><p className="text-slate-400 text-[10px] font-bold uppercase">ຍອດຄ້າງຊຳລະຈາກລູກຄ້າ</p></div>
+            <Link href={`/customer-debt${queryParams}`} className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between hover:border-rose-200 transition-colors">
+              <div className="flex items-center gap-3 mb-3"><div className="p-2 bg-rose-50 rounded-xl text-rose-500"><Users size={18} /></div><p className="text-slate-400 text-[10px] font-bold uppercase">ຍອດຄ້າງຊຳລະຈາກລູกຄ້າ</p></div>
               <h3 className="text-2xl font-black text-rose-500">{totalCustomerDebt.toLocaleString()} <span className="text-xs ml-1 font-bold">₭</span></h3>
             </Link>
 
-            {/* Card: ชำระโรงงานแล้ว (Clickable) */}
-            <Link href="/factory-paid" className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between hover:border-emerald-200 transition-colors">
+            <Link href={`/factory-paid${queryParams}`} className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between hover:border-emerald-200 transition-colors">
               <div className="flex items-center gap-3 mb-3"><div className="p-2 bg-emerald-50 rounded-xl text-emerald-500"><ArrowDownCircle size={18} /></div><p className="text-slate-400 text-[10px] font-bold uppercase">ຊຳລະຄ່າໂຮງງານແລ້ວ</p></div>
               <h3 className="text-2xl font-black text-emerald-600">{totalFactoryPaid.toLocaleString()} <span className="text-xs ml-1 font-bold">₭</span></h3>
             </Link>
 
-             {/* Card: ค้างจ่ายโรงงาน (Clickable) */}
-             <Link href="/factory-debt" className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between hover:border-blue-200 transition-colors">
+            <Link href={`/factory-debt${queryParams}`} className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between hover:border-blue-200 transition-colors">
               <div className="flex items-center gap-3 mb-3"><div className="p-2 bg-blue-50 rounded-xl text-blue-500"><Factory size={18} /></div><p className="text-slate-400 text-[10px] font-bold uppercase">ຍອດຄ້າງຈ່າຍໂຮງງານ</p></div>
               <h3 className="text-2xl font-black text-blue-600">{totalFactoryDebt.toLocaleString()} <span className="text-xs ml-1 font-bold">₭</span></h3>
             </Link>
-
           </div>
         </div>
 
@@ -211,13 +219,19 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
+            {/* ย้ายจำนวนเสื้อรวมมาไว้ตรงนี้ */}
+            <div className="bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 mr-2 flex flex-col justify-center">
+               <p className="text-[8px] font-bold text-blue-400 uppercase leading-none mb-1">Total Shirts</p>
+               <p className="font-black text-blue-700 text-sm leading-none">{totalShirts.toLocaleString()} ຜືນ</p>
+            </div>
+
             <div className="flex bg-slate-100/50 p-1 rounded-2xl border border-slate-100 mr-2">
                 <button onClick={() => window.print()} className="px-4 py-2 flex items-center gap-2 text-[11px] font-black text-slate-600 hover:bg-white rounded-xl transition-all"><Printer size={14}/> Print</button>
                 <button className="px-4 py-2 flex items-center gap-2 text-[11px] font-black text-emerald-600 hover:bg-white rounded-xl transition-all"><FileSpreadsheet size={14}/> Excel</button>
             </div>
             
             <button onClick={() => setViewAll(!viewAll)} className={`px-5 py-2.5 rounded-2xl font-bold text-[11px] shadow-sm transition-all ${!viewAll ? 'bg-amber-100 text-amber-600 ring-1 ring-amber-200' : 'bg-slate-50 text-slate-400'}`}>
-              {viewAll ? 'ສະແດງທັງໝົດ' :'ເບິ່ງສະເພาະເດືອນ' }
+              {viewAll ? 'ສະແດງທັງໝົດ' :'ເບິ່ງສະເພາະເດືອນ' }
             </button>
             
             <div className="flex bg-slate-100/50 p-1 rounded-2xl border border-slate-100">
@@ -228,7 +242,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Main Table (กว้างขึ้นและเพิ่มสถานะโรงงาน) */}
+        {/* Table Section */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
@@ -239,7 +253,7 @@ export default function Home() {
                   <th className="px-4 py-4 text-center">ຈຳນວນ</th>
                   <th className="px-4 py-4 text-right">ລາຄາລວມ</th>
                   <th className="px-4 py-4 text-right text-emerald-600">ມັດຈຳ/ຊຳລະແລ້ວ</th>
-                  <th className="px-4 py-4 text-right text-rose-500">ຄ້າງຮັບລູກຄ້າ</th>
+                  <th className="px-4 py-4 text-right text-rose-500">ຄ້າງຊຳລະຈາກລູกຄ້າ</th>
                   <th className="px-4 py-4 text-right text-blue-600">ຕົ້ນທຶນໂຮງງານ</th>
                   <th className="px-4 py-4 text-center">ສະຖານະຊຳລະໂຮງງານ</th>
                   <th className="px-4 py-4 text-center">ສະຖານະຜະລິດ</th>
@@ -271,8 +285,8 @@ export default function Home() {
                       </td>
                       <td className="px-4 py-4 print:hidden">
                         <div className="flex justify-center gap-3">
-                          <button onClick={() => startEdit(order)} className="opacity-40 hover:opacity-100 transition-opacity">✏️</button>
-                          <button onClick={() => (confirm('ລຶບ?') && supabase.from('orders').delete().eq('id', order.id).then(() => fetchOrders()))} className="opacity-40 hover:opacity-100 transition-opacity">🗑️</button>
+                          <button onClick={() => startEdit(order)} className="opacity-40 hover:opacity-100">✏️</button>
+                          <button onClick={() => (confirm('ລຶບ?') && supabase.from('orders').delete().eq('id', order.id).then(() => fetchOrders()))} className="opacity-40 hover:opacity-100">🗑️</button>
                         </div>
                       </td>
                     </tr>
